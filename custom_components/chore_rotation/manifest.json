@@ -1,0 +1,11 @@
+{
+  "domain": "chore_rotation",
+  "name": "Chore Rotation",
+  "version": "0.1.0",
+  "documentation": "https://github.com/your-account/ha-chore-rotation",
+  "issue_tracker": "https://github.com/your-account/ha-chore-rotation/issues",
+  "config_flow": true,
+  "dependencies": [],
+  "codeowners": [],
+  "iot_class": "calculated"
+}

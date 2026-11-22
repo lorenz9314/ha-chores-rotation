@@ -1,0 +1,110 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Create Chore Rotation",
+        "description": "Create an initial collection of household tasks and two people. Edit them afterwards under Configure."
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage chores",
+        "menu_options": {
+          "add_person": "Add person",
+          "rename_person": "Rename person",
+          "delete_person": "Delete person",
+          "add_task": "Add task",
+          "edit_task": "Edit task or reorder",
+          "delete_task": "Delete task"
+        }
+      },
+      "add_person": {
+        "title": "Add person",
+        "data": {
+          "name": {
+            "name": "Person name"
+          }
+        }
+      },
+      "rename_person": {
+        "title": "Rename person",
+        "data": {
+          "person": {
+            "name": "Person"
+          },
+          "name": {
+            "name": "New name"
+          }
+        }
+      },
+      "delete_person": {
+        "title": "Delete person",
+        "data": {
+          "person": {
+            "name": "Person (cannot be referenced by a task)"
+          }
+        }
+      },
+      "add_task": {
+        "title": "Add task",
+        "data": {
+          "name": {
+            "name": "Task name"
+          },
+          "frequency": {
+            "name": "Frequency"
+          },
+          "cycle": {
+            "name": "Ordered assignments (comma-separated person names)"
+          },
+          "position": {
+            "name": "Position in frequency group (1 = first)"
+          }
+        }
+      },
+      "edit_task": {
+        "title": "Select task to edit",
+        "data": {
+          "task": {
+            "name": "Task"
+          }
+        }
+      },
+      "edit_task_details": {
+        "title": "Edit task",
+        "data": {
+          "name": {
+            "name": "Task name"
+          },
+          "frequency": {
+            "name": "Frequency"
+          },
+          "cycle": {
+            "name": "Ordered assignments (comma-separated person names)"
+          },
+          "position": {
+            "name": "Position in frequency group (1 = first)"
+          }
+        }
+      },
+      "delete_task": {
+        "title": "Delete task",
+        "data": {
+          "task": {
+            "name": "Task"
+          }
+        }
+      }
+    },
+    "error": {
+      "invalid_name": "Name is empty or already in use.",
+      "invalid_cycle": "Use comma-separated existing person names, for example Person A, Person A, Person B.",
+      "person_in_use": "Remove this person from every task assignment sequence first."
+    },
+    "abort": {
+      "empty": "No items to select."
+    }
+  }
+}
