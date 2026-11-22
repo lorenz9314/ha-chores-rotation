@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 
-import voluptuous as vol
+import probatio as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
@@ -21,10 +21,10 @@ def find_entry(hass):
     return next(iter(hass.config_entries.async_entries(DOMAIN)), None)
 
 
+@websocket_api.require_admin
 @websocket_api.websocket_command({vol.Required("type"): "chore_rotation/get"})
 @websocket_api.async_response
 async def get_configuration(hass, connection, msg):
-    connection.require_admin()
     entry = find_entry(hass)
     if entry is None:
         connection.send_error(msg["id"], "not_configured", "Chore Rotation is not configured")
@@ -35,6 +35,7 @@ async def get_configuration(hass, connection, msg):
     })
 
 
+@websocket_api.require_admin
 @websocket_api.websocket_command({
     vol.Required("type"): "chore_rotation/save",
     vol.Required("people"): list,
@@ -42,7 +43,6 @@ async def get_configuration(hass, connection, msg):
 })
 @websocket_api.async_response
 async def save_configuration(hass, connection, msg):
-    connection.require_admin()
     entry = find_entry(hass)
     if entry is None:
         connection.send_error(msg["id"], "not_configured", "Chore Rotation is not configured")

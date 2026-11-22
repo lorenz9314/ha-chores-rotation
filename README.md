@@ -10,14 +10,15 @@ Add **Chore Rotation** in **Settings → Devices & services → Add integration*
 
 ## Management interface
 
-Open **Settings → Devices & services → Chore Rotation → Configure** to:
+After installation, open **Chore Rotation** from the Home Assistant sidebar. The integration includes a management panel and does not require another HACS frontend installation.
 
-- Add, rename, or delete people.
-- Add, edit, or delete chores.
-- Change a chore's frequency and position within its frequency group.
-- Configure an ordered cyclic assignment sequence, using comma-separated person names. For example, `Person A, Person A, Person A, Person A, Person A, Person A, Person B` gives a 6/7 split with B on Sunday for daily chores. `Person A, Person B` alternates each occurrence, even for weekly/monthly chores.
+- **Aufgaben & Verteilung:** Edit all chores on one page. Use +/- to adjust each person's number of shares. Click a slot in the repeating assignment sequence to rotate its owner. Use arrows to change task order, and add or remove tasks within each frequency group.
+- **Personen:** Add, rename and remove people. Removing someone removes their shares; if a task would otherwise have no assignee, it is assigned to the first remaining person.
+- **Heutige Aufgaben:** Inspect the current published sensor assignments.
 
-Each save closes the configuration dialog and applies the new configuration. Reopen **Configure** to make another change. A person referenced by any task cannot be deleted until those assignments are changed.
+All modifications are held locally until **Alle Änderungen speichern** is clicked. **Verwerfen** restores the last saved configuration. Changes to chores or people immediately update the HA sensor after saving. The old one-operation-at-a-time Configure flow is retained for compatibility, but the sidebar management panel is the intended interface.
+
+The order of shares matters: for daily cooking, `A A A A A A B` gives B every Sunday when the cycle is aligned to the reference Monday. For a weekly chore, `A B` alternates by week. Person percentages specify proportions, while individual slots control their ordering. No notifications are sent by this integration.
 
 ## Output entity
 
@@ -56,4 +57,4 @@ For notifications, create a **time-triggered automation** that reads this attrib
 
 ## Development status
 
-Initial implementation. The pure scheduling function has unit tests. This integration has **not been exercised against a running HA 2026.11 instance**. Test installation, configuration flows, and entity updates before relying on it for household reminders.
+Initial implementation with native HA sidebar management panel. Pure scheduler tests and JavaScript syntax checks have been run. **This integration has not yet been tested inside a running HA 2026.11 instance.** Verify panel registration, WebSocket saves and sensor updates after installing.
