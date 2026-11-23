@@ -15,13 +15,14 @@ from .scheduler import FREQUENCIES, default_schedule
 def async_setup(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, get_configuration)
     websocket_api.async_register_command(hass, save_configuration)
+    websocket_api.async_register_command(hass, get_pending)
+    websocket_api.async_register_command(hass, complete_occurrence)
 
 
 def find_entry(hass):
     return next(iter(hass.config_entries.async_entries(DOMAIN)), None)
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command({vol.Required("type"): "chore_rotation/get"})
 @websocket_api.async_response
 async def get_configuration(hass, connection, msg):
@@ -115,3 +116,34 @@ async def save_configuration(hass, connection, msg):
     sensor = entry.runtime_data
     sensor.async_write_ha_state()
     connection.send_result(msg["id"], {"saved": True})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "chore_rotation/pending"})
+@websocket_api.async_response
+async def get_pending(hass, connection, msg):
+    entry = find_entry(hass)
+    if entry is None:
+        connection.send_error(msg["id"], "not_configured", "Chore Rotation is not configured")
+        return
+    backlog = hass.data[DOMAIN][entry.entry_id]
+    connection.send_result(msg["id"], {"pending": deepcopy(backlog.pending)})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "chore_rotation/complete",
+    vol.Required("occurrence_id"): str,
+})
+@websocket_api.async_response
+async def complete_occurrence(hass, connection, msg):
+    entry = find_entry(hass)
+    if entry is None:
+        connection.send_error(msg["id"], "not_configured", "Chore Rotation is not configured")
+        return
+    backlog = hass.data[DOMAIN][entry.entry_id]
+    try:
+        await backlog.complete(msg["occurrence_id"])
+    except ValueError as exc:
+        connection.send_error(msg["id"], "not_found", str(exc))
+        return
+    entry.runtime_data.async_write_ha_state()
+    connection.send_result(msg["id"], {"completed": True})
