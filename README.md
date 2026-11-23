@@ -76,3 +76,7 @@ In **Chores & assignments**, each chore has an **Assignment method** selector:
 The weekday assignments use the chore's **actual scheduled date**, not the date of configuration. For monthly and less frequent tasks, only the weekdays on which a task actually occurs matter. The existing numeric share controls still edit the fallback sequence; when fixed weekdays are selected, those percentages do not describe the actual weekly distribution.
 
 Older configurations automatically continue in **Repeating sequence** mode until edited. The published `sensor.chore_rotation_today` format is unchanged, as are existing notification automations.
+
+## Direct links to dashboard tabs
+
+The dashboard supports direct links to tabs, including `/chore-rotation#today` for the Today's chores tab. Use this path as the iOS Companion App notification `url` to open the daily overview.

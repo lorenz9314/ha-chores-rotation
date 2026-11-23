@@ -28,7 +28,12 @@ class ChoreRotationPanel extends HTMLElement {
     this.dirty = false;
     this.error = "";
     this.notice = "";
-    this.active = "chores";
+    this.active = window.location.hash === "#today" ? "today" : "chores";
+    this.onHashChange = () => {
+      const tab = window.location.hash.slice(1);
+      this.active = ["chores", "people", "today"].includes(tab) ? tab : "chores";
+      this.render();
+    };
   }
 
   set hass(value) {
@@ -37,7 +42,12 @@ class ChoreRotationPanel extends HTMLElement {
   }
 
   connectedCallback() {
-    this.render();
+    window.addEventListener("hashchange", this.onHashChange);
+    this.onHashChange();
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener("hashchange", this.onHashChange);
   }
 
   async load() {
@@ -290,7 +300,12 @@ class ChoreRotationPanel extends HTMLElement {
   }
 
   handle({ action, id, person, position, frequency, tab }) {
-    if (action === "tab") { this.active = tab; this.render(); return; }
+    if (action === "tab") {
+      this.active = tab;
+      window.location.hash = tab;
+      this.render();
+      return;
+    }
     if (action === "save") { this.save(); return; }
     if (action === "discard") { this.load(); return; }
     if (action === "add-person") { this.people.push({ id: uid(), name: `Person ${this.people.length + 1}` }); this.changed(); return; }
