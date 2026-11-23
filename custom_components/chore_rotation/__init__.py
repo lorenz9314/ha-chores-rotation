@@ -33,7 +33,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             frontend_url_path="chore-rotation",
             sidebar_title="Chore Rotation",
             sidebar_icon="mdi:clipboard-list",
-            module_url=f"/{DOMAIN}_frontend/chore-rotation-panel.js?v=0.4.1",
+            module_url=f"/{DOMAIN}_frontend/chore-rotation-panel.js?v=0.5.0",
             require_admin=True,
         )
 

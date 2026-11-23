@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 
-import probatio as vol
+import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
@@ -89,6 +89,17 @@ async def save_configuration(hass, connection, msg):
             if frequency in ("monthly", "quarterly"):
                 if type(schedule.get("day")) is not int or not 1 <= schedule["day"] <= 31:
                     raise ValueError("Monthly day must be between 1 and 31")
+            mode = task.get("assignment_mode", "cycle")
+            if mode not in ("cycle", "weekday", "override"):
+                raise ValueError("Invalid assignment method")
+            weekday_assignments = task.get("weekday_assignments", {})
+            if not isinstance(weekday_assignments, dict):
+                raise ValueError("Invalid weekday assignments")
+            if any(day not in {str(i) for i in range(7)} or pid not in ids
+                   for day, pid in weekday_assignments.items()):
+                raise ValueError("Invalid weekday or assigned person")
+            if mode == "weekday" and len(weekday_assignments) != 7:
+                raise ValueError("Specify a person for all seven weekdays")
             cycle = task["cycle"]
             if not isinstance(cycle, list) or not cycle or any(pid not in ids for pid in cycle):
                 raise ValueError("Each task requires a valid assignment cycle")

@@ -67,5 +67,10 @@ def assignments(day: date, people: list[dict], chores: list[dict]) -> dict[str, 
         number = occurrence_number(day, task)
         if number is not None:
             cycle = task["cycle"]
-            result[names[cycle[number % len(cycle)]]].append(task["name"])
+            mode = task.get("assignment_mode", "cycle")
+            weekday_assignments = task.get("weekday_assignments", {})
+            assignee = cycle[number % len(cycle)]
+            if mode in ("weekday", "override"):
+                assignee = weekday_assignments.get(str(day.weekday()), assignee)
+            result[names[assignee]].append(task["name"])
     return result

@@ -64,3 +64,15 @@ Assignment cycles advance once per scheduled occurrence and are independent per 
 The HA sensor remains `sensor.chore_rotation_today`. Existing notification automations do not need changes.
 
 No notifications, load balancing, completion tracking or overdue handling are built into the integration.
+
+## Assignment methods (v0.5.0)
+
+In **Chores & assignments**, each chore has an **Assignment method** selector:
+
+- **Repeating sequence** (default): keep the existing ordered rotation. A weekly `A B` chore alternates between people across weeks.
+- **Fixed weekdays**: choose one person for each weekday. For daily cooking, assign Monday to B and the other six days to A. The same weekday will always belong to the same person.
+- **Sequence with weekday overrides**: set a person on selected weekdays and leave the others as **Use sequence**. Overrides replace the assignee on that date but do not advance or modify the underlying date-derived sequence.
+
+The weekday assignments use the chore's **actual scheduled date**, not the date of configuration. For monthly and less frequent tasks, only the weekdays on which a task actually occurs matter. The existing numeric share controls still edit the fallback sequence; when fixed weekdays are selected, those percentages do not describe the actual weekly distribution.
+
+Older configurations automatically continue in **Repeating sequence** mode until edited. The published `sensor.chore_rotation_today` format is unchanged, as are existing notification automations.

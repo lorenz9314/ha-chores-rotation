@@ -155,6 +155,11 @@ class ChoreRotationPanel extends HTMLElement {
         .count { min-width:22px; text-align:center; font-weight:600; font-variant-numeric:tabular-nums; }
         .cycle { display:flex; flex-wrap:wrap; gap:4px; margin-top:10px; align-items:center; }
         .slot { border:1px solid var(--divider-color,#ddd); background:var(--secondary-background-color,#f1f1f1); font-size:12px; min-width:26px; padding:5px; }
+        .weekday-assignments { margin-top:12px; display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:8px; }
+        .weekday-assignments label { font-size:12px; display:flex; flex-direction:column; gap:5px; }
+        .weekday-assignments select { width:100%; }
+        .assignment-method { margin-top:12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px; }
+        .assignment-method select { width:auto; max-width:260px; }
         .percentage { font-size:12px; color:var(--secondary-text-color); margin-top:6px; }
         .people-row { display:grid; grid-template-columns:minmax(150px,1fr) auto; gap:10px; align-items:center; padding:10px 0; border-top:1px solid var(--divider-color,#ddd); }
         .people-row:first-child { border-top:0; }
@@ -203,10 +208,24 @@ class ChoreRotationPanel extends HTMLElement {
     const counts = Object.fromEntries(this.people.map(p => [p.id, task.cycle.filter(v => v === p.id).length]));
     const shares = this.people.map(p => `<div class="share"><label title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</label><button class="small icon" data-action="minus" data-id="${task.id}" data-person="${p.id}" aria-label="Decrease share for ${escapeHtml(p.name)}">−</button><span class="count">${counts[p.id]}</span><button class="small icon" data-action="plus" data-id="${task.id}" data-person="${p.id}" aria-label="Increase share for ${escapeHtml(p.name)}">+</button></div>`).join("");
     const cycle = task.cycle.map((id, position) => `<button class="slot" data-action="cycle" data-id="${task.id}" data-position="${position}" title="Change assigned person">${escapeHtml(this.personName(id))}</button>`).join("");
+    const mode = task.assignment_mode || "cycle";
+    const weekdayAssignments = task.weekday_assignments || {};
+    const methodEditor = `<div class="assignment-method"><label for="method-${task.id}">Assignment method</label><select id="method-${task.id}" data-field="assignment-mode" data-id="${task.id}">
+      <option value="cycle" ${mode === "cycle" ? "selected" : ""}>Repeating sequence</option>
+      <option value="weekday" ${mode === "weekday" ? "selected" : ""}>Fixed weekdays</option>
+      <option value="override" ${mode === "override" ? "selected" : ""}>Sequence with weekday overrides</option>
+    </select></div>`;
+    const weekdayEditor = mode === "cycle" ? "" : `<div class="weekday-assignments">${WEEKDAYS.map((day, index) => {
+      const assigned = weekdayAssignments[String(index)];
+      return `<label>${day}<select data-field="assignment-weekday" data-id="${task.id}" data-day="${index}">
+        ${mode === "override" ? `<option value="">Use sequence</option>` : ""}
+        ${this.people.map(p => `<option value="${escapeHtml(p.id)}" ${p.id === assigned ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("")}
+      </select></label>`;
+    }).join("")}</div>`;
     const percentages = this.people.filter(p => counts[p.id]).map(p => `${escapeHtml(p.name)} ${Math.round(100 * counts[p.id] / task.cycle.length)} %`).join(" · ");
     return `<div class="task">
       <div><input aria-label="Chore name" class="task-name" data-field="task-name" data-id="${task.id}" value="${escapeHtml(task.name)}"/><div class="muted" style="margin-top:7px">${index + 1} of ${total}</div>${this.renderSchedule(task)}</div>
-      <div><div class="share-grid">${shares}</div><div class="cycle" title="Click a slot to change its assigned person">${cycle}</div><div class="percentage">${percentages || "No assignments"} · Click slots to change assignment order</div></div>
+      <div><div class="share-grid">${shares}</div><div class="cycle" title="Click a slot to change its assigned person">${cycle}</div><div class="percentage">${percentages || "No assignments"} · Click slots to change assignment order</div>${methodEditor}${weekdayEditor}</div>
       <div class="task-controls"><button class="small icon" data-action="up" data-id="${task.id}" ${index === 0 ? "disabled" : ""} title="Move up">↑</button><button class="small icon" data-action="down" data-id="${task.id}" ${index === total - 1 ? "disabled" : ""} title="Move down">↓</button><button class="small danger" data-action="delete-task" data-id="${task.id}">Delete</button></div>
     </div>`;
   }
@@ -241,7 +260,7 @@ class ChoreRotationPanel extends HTMLElement {
     </section>`;
   }
 
-  editField({ field, id }, value) {
+  editField({ field, id, day }, value) {
     if (field === "task-name") this.chores.find(t => t.id === id).name = value;
     if (field === "person-name") this.people.find(p => p.id === id).name = value;
     const task = this.chores.find(t => t.id === id);
@@ -249,6 +268,20 @@ class ChoreRotationPanel extends HTMLElement {
       task.frequency = value;
       task.schedule = defaultSchedule(value);
       this.chores = FREQUENCIES.flatMap(([freq]) => this.chores.filter(t => t.frequency === freq));
+    }
+    if (task && field === "assignment-mode") {
+      task.assignment_mode = value;
+      task.weekday_assignments ||= {};
+      if (value === "weekday") {
+        for (let d = 0; d < 7; d++) {
+          task.weekday_assignments[String(d)] ||= task.cycle[0];
+        }
+      }
+    }
+    if (task && field === "assignment-weekday") {
+      task.weekday_assignments ||= {};
+      if (value) task.weekday_assignments[String(day)] = value;
+      else delete task.weekday_assignments[String(day)];
     }
     if (task && field === "schedule-interval") task.schedule.interval = Math.max(1, Math.min(120, Number(value) || 1));
     if (task && field === "schedule-day") task.schedule.day = Math.max(1, Math.min(31, Number(value) || 1));
@@ -267,12 +300,20 @@ class ChoreRotationPanel extends HTMLElement {
       this.people = remaining;
       for (const task of this.chores) {
         task.cycle = task.cycle.filter(pid => pid !== id);
+        if (task.weekday_assignments) {
+          for (const [day, pid] of Object.entries(task.weekday_assignments)) {
+            if (pid === id) {
+              if (task.assignment_mode === "weekday") task.weekday_assignments[day] = remaining[0].id;
+              else delete task.weekday_assignments[day];
+            }
+          }
+        }
         if (!task.cycle.length) task.cycle = [remaining[0].id];
       }
       this.changed(); return;
     }
     if (action === "add-task") {
-      const task = { id: uid(), name: "New chore", frequency, schedule: defaultSchedule(frequency), cycle: [this.people[0].id] };
+      const task = { id: uid(), name: "New chore", frequency, schedule: defaultSchedule(frequency), cycle: [this.people[0].id], assignment_mode: "cycle", weekday_assignments: {} };
       const last = this.chores.map(t => t.frequency).lastIndexOf(frequency);
       this.chores.splice(last === -1 ? this.chores.length : last + 1, 0, task);
       this.changed(); return;
