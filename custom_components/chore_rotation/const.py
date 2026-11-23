@@ -1,6 +1,7 @@
 """Constants and initial example chores."""
 
 DOMAIN = "chore_rotation"
+RUNTIME_KEY = f"{DOMAIN}_runtime"
 DEFAULT_PEOPLE = [
     {"id": "a", "name": "Person A"},
     {"id": "b", "name": "Person B"},

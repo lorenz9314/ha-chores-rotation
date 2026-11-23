@@ -98,6 +98,6 @@ Only administrators can edit the people, recurrence rules, task definitions and 
 This panel is registered by the integration, so it does not appear under Home Assistant's ordinary dashboard settings.
 Existing chores and outstanding items remain in Home Assistant's persistent storage when updating.
 
-## v0.6.2: Same-day scheduling fix
+## v0.6.3: Same-day scheduling fix
 
 After configuration changes, newly due chores are now added immediately to the outstanding list, even if today's initial refresh already ran. A restarted integration also reconciles today's chores. Completed occurrences are not re-added on later refreshes that day. Existing configuration and earlier pending chores remain unchanged.
