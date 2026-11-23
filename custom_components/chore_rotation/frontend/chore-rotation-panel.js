@@ -1,11 +1,19 @@
 const FREQUENCIES = [
-  ["daily", "Täglich"],
-  ["twice_weekly", "Zweimal wöchentlich"],
-  ["weekly", "Wöchentlich"],
-  ["monthly", "Monatlich"],
-  ["quarterly", "Vierteljährlich"],
+  ["daily", "Daily"],
+  ["twice_weekly", "Twice weekly"],
+  ["weekly", "Weekly"],
+  ["monthly", "Monthly"],
+  ["quarterly", "Quarterly"],
 ];
 
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const defaultSchedule = (freq) => {
+  if (freq === "daily") return { interval: 1 };
+  if (freq === "twice_weekly") return { interval: 1, weekdays: [0, 3], anchor: "2026-11-16" };
+  if (freq === "weekly") return { interval: 1, weekdays: [0], anchor: "2026-11-16" };
+  if (freq === "monthly") return { interval: 1, day: 1, anchor: "2026-11-01" };
+  return { interval: 3, day: 1, anchor: "2026-10-01" };
+};
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 }[c]));
@@ -38,12 +46,12 @@ class ChoreRotationPanel extends HTMLElement {
     try {
       const result = await this._hass.callWS({ type: "chore_rotation/get" });
       this.people = result.people;
-      this.chores = result.chores;
+      this.chores = result.chores.map(t => ({...t, schedule: t.schedule || defaultSchedule(t.frequency)}));
       this.loaded = true;
       this.dirty = false;
       this.error = "";
     } catch (e) {
-      this.error = `Konfiguration konnte nicht geladen werden: ${e.message || e}`;
+      this.error = `Could not load configuration: ${e.message || e}`;
     } finally {
       this.busy = false;
       this.render();
@@ -60,17 +68,17 @@ class ChoreRotationPanel extends HTMLElement {
   async save() {
     if (this.busy) return;
     if (!this.people.length || this.people.some(p => !p.name.trim())) {
-      this.error = "Mindestens eine Person mit Namen ist erforderlich.";
+      this.error = "At least one named person is required.";
       this.render();
       return;
     }
     if (new Set(this.people.map(p => p.name.trim())).size !== this.people.length) {
-      this.error = "Personennamen müssen eindeutig sein.";
+      this.error = "Person names must be unique.";
       this.render();
       return;
     }
     if (this.chores.some(t => !t.name.trim() || !t.cycle.length)) {
-      this.error = "Jede Aufgabe benötigt einen Namen und mindestens eine Zuweisung.";
+      this.error = "Every chore needs a name and at least one assignment.";
       this.render();
       return;
     }
@@ -83,9 +91,9 @@ class ChoreRotationPanel extends HTMLElement {
         chores: this.chores,
       });
       this.dirty = false;
-      this.notice = "Änderungen gespeichert. Der Sensor wurde aktualisiert.";
+      this.notice = "Changes saved. The sensor has been updated.";
     } catch (e) {
-      this.error = `Speichern fehlgeschlagen: ${e.message || e}`;
+      this.error = `Could not save changes: ${e.message || e}`;
     } finally {
       this.busy = false;
       this.render();
@@ -93,7 +101,7 @@ class ChoreRotationPanel extends HTMLElement {
   }
 
   personName(id) {
-    return this.people.find(p => p.id === id)?.name || "Unbekannt";
+    return this.people.find(p => p.id === id)?.name || "Unknown";
   }
 
   groupTasks(freq) {
@@ -134,6 +142,11 @@ class ChoreRotationPanel extends HTMLElement {
         .task { display:grid; grid-template-columns:minmax(165px,2fr) minmax(190px,3fr) auto; align-items:start; gap:14px; padding:14px 0; border-top:1px solid var(--divider-color,#ddd); }
         .task:first-of-type { border-top:0; }
         .task-title { display:flex; gap:8px; align-items:center; }
+        .schedule { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+        .schedule label { font-size:12px; color:var(--secondary-text-color); display:flex; gap:5px; align-items:center; }
+        .schedule input, .schedule select { width:auto; max-width:150px; }
+        .weekdays { display:flex; gap:4px; flex-wrap:wrap; }
+        .weekdays button.selected { background:var(--primary-color); color:var(--text-primary-color,#fff); }
         .task-controls { display:flex; gap:4px; justify-content:flex-end; }
         .task-name { font-weight:550; }
         .share-grid { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; }
@@ -157,19 +170,19 @@ class ChoreRotationPanel extends HTMLElement {
       </style>
       <div class="wrap">
         <header>
-          <div><h1>Hausarbeiten</h1><div class="muted">Aufgaben und wiederkehrende Verteilung verwalten</div></div>
-          <div class="actions"><span class="muted">${chores.length} Aufgaben · ${people.length} Personen</span></div>
+          <div><h1>Chores</h1><div class="muted">Manage chore schedules and recurring assignments</div></div>
+          <div class="actions"><span class="muted">${chores.length} chores · ${people.length} people</span></div>
         </header>
         ${this.error ? `<div class="message error" role="alert">${escapeHtml(this.error)}</div>` : ""}
         ${this.notice ? `<div class="message">${escapeHtml(this.notice)}</div>` : ""}
-        ${!ready ? `<div class="card">${this.busy ? "Konfiguration wird geladen …" : "Konfiguration nicht verfügbar."}</div>` : `
+        ${!ready ? `<div class="card">${this.busy ? "Loading configuration…" : "Configuration unavailable."}</div>` : `
           <div class="tabs">
-            <button data-action="tab" data-tab="chores" class="${this.active === "chores" ? "active" : ""}">Aufgaben & Verteilung</button>
-            <button data-action="tab" data-tab="people" class="${this.active === "people" ? "active" : ""}">Personen</button>
-            <button data-action="tab" data-tab="today" class="${this.active === "today" ? "active" : ""}">Heutige Aufgaben</button>
+            <button data-action="tab" data-tab="chores" class="${this.active === "chores" ? "active" : ""}">Chores & assignments</button>
+            <button data-action="tab" data-tab="people" class="${this.active === "people" ? "active" : ""}">People</button>
+            <button data-action="tab" data-tab="today" class="${this.active === "today" ? "active" : ""}">Today's chores</button>
           </div>
           ${this.active === "chores" ? this.renderChores() : this.active === "people" ? this.renderPeople() : this.renderToday()}
-          <div class="footer"><span class="muted">${this.dirty ? "Ungespeicherte Änderungen" : "Alle Änderungen gespeichert"}</span><button data-action="discard" ${!this.dirty || this.busy ? "disabled" : ""}>Verwerfen</button><button class="primary" data-action="save" ${!this.dirty || this.busy ? "disabled" : ""}>${this.busy ? "Speichern …" : "Alle Änderungen speichern"}</button></div>
+          <div class="footer"><span class="muted">${this.dirty ? "Unsaved changes" : "All changes saved"}</span><button data-action="discard" ${!this.dirty || this.busy ? "disabled" : ""}>Discard</button><button class="primary" data-action="save" ${!this.dirty || this.busy ? "disabled" : ""}>${this.busy ? "Saving…" : "Save all changes"}</button></div>
         `}
       </div>`;
     this.shadowRoot.querySelectorAll("button[data-action]").forEach(b => b.addEventListener("click", () => this.handle(b.dataset)));
@@ -180,43 +193,66 @@ class ChoreRotationPanel extends HTMLElement {
   renderChores() {
     return FREQUENCIES.map(([freq, label]) => {
       const tasks = this.groupTasks(freq);
-      return `<section class="card"><div class="card-head"><h2>${label} <span class="muted">(${tasks.length})</span></h2><button class="small" data-action="add-task" data-frequency="${freq}">+ Aufgabe hinzufügen</button></div>
-        ${tasks.length ? tasks.map((task, index) => this.renderTask(task, index, tasks.length)).join("") : '<div class="empty">Keine Aufgaben in dieser Gruppe.</div>'}
+      return `<section class="card"><div class="card-head"><h2>${label} <span class="muted">(${tasks.length})</span></h2><button class="small" data-action="add-task" data-frequency="${freq}">+ Add chore</button></div>
+        ${tasks.length ? tasks.map((task, index) => this.renderTask(task, index, tasks.length)).join("") : '<div class="empty">No chores in this group.</div>'}
       </section>`;
     }).join("");
   }
 
   renderTask(task, index, total) {
     const counts = Object.fromEntries(this.people.map(p => [p.id, task.cycle.filter(v => v === p.id).length]));
-    const shares = this.people.map(p => `<div class="share"><label title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</label><button class="small icon" data-action="minus" data-id="${task.id}" data-person="${p.id}" aria-label="Anteil verringern: ${escapeHtml(p.name)}">−</button><span class="count">${counts[p.id]}</span><button class="small icon" data-action="plus" data-id="${task.id}" data-person="${p.id}" aria-label="Anteil erhöhen: ${escapeHtml(p.name)}">+</button></div>`).join("");
-    const cycle = task.cycle.map((id, position) => `<button class="slot" data-action="cycle" data-id="${task.id}" data-position="${position}" title="Person wechseln">${escapeHtml(this.personName(id))}</button>`).join("");
+    const shares = this.people.map(p => `<div class="share"><label title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</label><button class="small icon" data-action="minus" data-id="${task.id}" data-person="${p.id}" aria-label="Decrease share for ${escapeHtml(p.name)}">−</button><span class="count">${counts[p.id]}</span><button class="small icon" data-action="plus" data-id="${task.id}" data-person="${p.id}" aria-label="Increase share for ${escapeHtml(p.name)}">+</button></div>`).join("");
+    const cycle = task.cycle.map((id, position) => `<button class="slot" data-action="cycle" data-id="${task.id}" data-position="${position}" title="Change assigned person">${escapeHtml(this.personName(id))}</button>`).join("");
     const percentages = this.people.filter(p => counts[p.id]).map(p => `${escapeHtml(p.name)} ${Math.round(100 * counts[p.id] / task.cycle.length)} %`).join(" · ");
     return `<div class="task">
-      <div><input aria-label="Aufgabenname" class="task-name" data-field="task-name" data-id="${task.id}" value="${escapeHtml(task.name)}"/><div class="muted" style="margin-top:7px">${index + 1} von ${total} · ${escapeHtml(task.frequency)}</div></div>
-      <div><div class="share-grid">${shares}</div><div class="cycle" title="Auf ein Feld klicken, um die zugewiesene Person an dieser Position zu wechseln">${cycle}</div><div class="percentage">${percentages || "Keine Zuweisungen"} · Reihenfolge durch Anklicken der Felder ändern</div></div>
-      <div class="task-controls"><button class="small icon" data-action="up" data-id="${task.id}" ${index === 0 ? "disabled" : ""} title="Nach oben">↑</button><button class="small icon" data-action="down" data-id="${task.id}" ${index === total - 1 ? "disabled" : ""} title="Nach unten">↓</button><button class="small danger" data-action="delete-task" data-id="${task.id}">Löschen</button></div>
+      <div><input aria-label="Chore name" class="task-name" data-field="task-name" data-id="${task.id}" value="${escapeHtml(task.name)}"/><div class="muted" style="margin-top:7px">${index + 1} of ${total}</div>${this.renderSchedule(task)}</div>
+      <div><div class="share-grid">${shares}</div><div class="cycle" title="Click a slot to change its assigned person">${cycle}</div><div class="percentage">${percentages || "No assignments"} · Click slots to change assignment order</div></div>
+      <div class="task-controls"><button class="small icon" data-action="up" data-id="${task.id}" ${index === 0 ? "disabled" : ""} title="Move up">↑</button><button class="small icon" data-action="down" data-id="${task.id}" ${index === total - 1 ? "disabled" : ""} title="Move down">↓</button><button class="small danger" data-action="delete-task" data-id="${task.id}">Delete</button></div>
     </div>`;
   }
 
+  renderSchedule(task) {
+    const s = task.schedule;
+    const frequency = `<label>Recurrence <select data-field="task-frequency" data-id="${task.id}">${FREQUENCIES.map(([id, title]) => `<option value="${id}" ${task.frequency === id ? "selected" : ""}>${title}</option>`).join("")}</select></label>`;
+    const interval = `<label>Every <input aria-label="Recurrence interval" type="number" min="1" max="120" data-field="schedule-interval" data-id="${task.id}" value="${s.interval}" style="width:65px"/> ${task.frequency === "daily" ? "days" : ["weekly", "twice_weekly"].includes(task.frequency) ? "weeks" : "months"}</label>`;
+    let details = "";
+    if (["weekly", "twice_weekly"].includes(task.frequency)) {
+      details = `<div class="weekdays">${WEEKDAYS.map((label, index) => `<button class="small ${s.weekdays.includes(index) ? "selected" : ""}" data-action="weekday" data-id="${task.id}" data-position="${index}" title="${label}">${label}</button>`).join("")}</div>`;
+    } else if (["monthly", "quarterly"].includes(task.frequency)) {
+      details = `<label>On day <input type="number" min="1" max="31" data-field="schedule-day" data-id="${task.id}" value="${s.day}" style="width:65px"/> of the month</label>`;
+    }
+    if (task.frequency !== "daily") details += `<label>Reference date <input type="date" data-field="schedule-anchor" data-id="${task.id}" value="${escapeHtml(s.anchor)}"/></label>`;
+    return `<div class="schedule">${frequency}${interval}${details}</div>`;
+  }
+
   renderPeople() {
-    return `<section class="card"><div class="card-head"><h2>Personen</h2><button data-action="add-person">+ Person hinzufügen</button></div>
-      ${this.people.map(p => `<div class="people-row"><input data-field="person-name" data-id="${p.id}" aria-label="Personenname" value="${escapeHtml(p.name)}"/><button class="danger" data-action="delete-person" data-id="${p.id}" ${this.people.length === 1 ? "disabled" : ""}>Entfernen</button></div>`).join("")}
-      <p class="muted">Beim Entfernen einer Person werden deren Zuweisungen aus allen Aufgaben entfernt. Aufgaben mit ausschließlich dieser Person werden der ersten verbleibenden Person zugewiesen.</p>
+    return `<section class="card"><div class="card-head"><h2>People</h2><button data-action="add-person">+ Add person</button></div>
+      ${this.people.map(p => `<div class="people-row"><input data-field="person-name" data-id="${p.id}" aria-label="Person name" value="${escapeHtml(p.name)}"/><button class="danger" data-action="delete-person" data-id="${p.id}" ${this.people.length === 1 ? "disabled" : ""}>Remove</button></div>`).join("")}
+      <p class="muted">Removing a person removes their assignments from all chores. Chores assigned only to that person are reassigned to the first remaining person.</p>
     </section>`;
   }
 
   renderToday() {
     const value = this._hass?.states?.["sensor.chore_rotation_today"]?.attributes;
     const assignments = value?.assignments || {};
-    return `<section class="card"><div class="card-head"><h2>Heutige Aufgaben</h2><span class="muted">${escapeHtml(value?.date || "")}</span></div>
-      <div class="preview">${this.people.map(p => `<div class="preview-person"><h3>${escapeHtml(p.name)}</h3><ul>${(assignments[p.name] || []).map(t => `<li>${escapeHtml(t)}</li>`).join("") || '<li class="muted">Keine Aufgaben</li>'}</ul></div>`).join("")}</div>
-      <p class="muted">Dies sind die zuletzt veröffentlichten Sensorwerte. Ungespeicherte Änderungen erscheinen erst nach dem Speichern.</p>
+    return `<section class="card"><div class="card-head"><h2>Today's chores</h2><span class="muted">${escapeHtml(value?.date || "")}</span></div>
+      <div class="preview">${this.people.map(p => `<div class="preview-person"><h3>${escapeHtml(p.name)}</h3><ul>${(assignments[p.name] || []).map(t => `<li>${escapeHtml(t)}</li>`).join("") || '<li class="muted">No chores</li>'}</ul></div>`).join("")}</div>
+      <p class="muted">These are the most recently published sensor values. Unsaved changes appear only after saving.</p>
     </section>`;
   }
 
   editField({ field, id }, value) {
     if (field === "task-name") this.chores.find(t => t.id === id).name = value;
     if (field === "person-name") this.people.find(p => p.id === id).name = value;
+    const task = this.chores.find(t => t.id === id);
+    if (task && field === "task-frequency") {
+      task.frequency = value;
+      task.schedule = defaultSchedule(value);
+      this.chores = FREQUENCIES.flatMap(([freq]) => this.chores.filter(t => t.frequency === freq));
+    }
+    if (task && field === "schedule-interval") task.schedule.interval = Math.max(1, Math.min(120, Number(value) || 1));
+    if (task && field === "schedule-day") task.schedule.day = Math.max(1, Math.min(31, Number(value) || 1));
+    if (task && field === "schedule-anchor" && /^\d{4}-\d{2}-\d{2}$/.test(value)) task.schedule.anchor = value;
     this.changed();
   }
 
@@ -236,7 +272,7 @@ class ChoreRotationPanel extends HTMLElement {
       this.changed(); return;
     }
     if (action === "add-task") {
-      const task = { id: uid(), name: "Neue Aufgabe", frequency, cycle: [this.people[0].id] };
+      const task = { id: uid(), name: "New chore", frequency, schedule: defaultSchedule(frequency), cycle: [this.people[0].id] };
       const last = this.chores.map(t => t.frequency).lastIndexOf(frequency);
       this.chores.splice(last === -1 ? this.chores.length : last + 1, 0, task);
       this.changed(); return;
@@ -244,7 +280,17 @@ class ChoreRotationPanel extends HTMLElement {
     if (action === "delete-task") { this.chores = this.chores.filter(t => t.id !== id); this.changed(); return; }
     const task = this.chores.find(t => t.id === id);
     if (!task) return;
-    if (action === "plus") {
+    if (action === "weekday") {
+      const day = Number(position);
+      const weekdays = task.schedule.weekdays;
+      if (weekdays.includes(day)) {
+        if (weekdays.length <= (task.frequency === "twice_weekly" ? 2 : 1)) return;
+        task.schedule.weekdays = weekdays.filter(x => x !== day);
+      } else {
+        if (task.frequency === "twice_weekly" && weekdays.length >= 2) task.schedule.weekdays = [weekdays[1], day].sort((a,b) => a-b);
+        else task.schedule.weekdays = [...weekdays, day].sort((a,b) => a-b);
+      }
+    } else if (action === "plus") {
       const last = task.cycle.lastIndexOf(person);
       task.cycle.splice(last < 0 ? task.cycle.length : last + 1, 0, person);
     } else if (action === "minus") {

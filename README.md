@@ -12,11 +12,11 @@ Add **Chore Rotation** in **Settings → Devices & services → Add integration*
 
 After installation, open **Chore Rotation** from the Home Assistant sidebar. The integration includes a management panel and does not require another HACS frontend installation.
 
-- **Aufgaben & Verteilung:** Edit all chores on one page. Use +/- to adjust each person's number of shares. Click a slot in the repeating assignment sequence to rotate its owner. Use arrows to change task order, and add or remove tasks within each frequency group.
-- **Personen:** Add, rename and remove people. Removing someone removes their shares; if a task would otherwise have no assignee, it is assigned to the first remaining person.
-- **Heutige Aufgaben:** Inspect the current published sensor assignments.
+- **Chores & assignments:** Edit all chores on one page. Use +/- to adjust each person's number of shares. Click a slot in the repeating assignment sequence to rotate its owner. Use arrows to change task order, and add or remove tasks within each frequency group.
+- **People:** Add, rename and remove people. Removing someone removes their shares; if a task would otherwise have no assignee, it is assigned to the first remaining person.
+- **Today's chores:** Inspect the current published sensor assignments.
 
-All modifications are held locally until **Alle Änderungen speichern** is clicked. **Verwerfen** restores the last saved configuration. Changes to chores or people immediately update the HA sensor after saving. The old one-operation-at-a-time Configure flow is retained for compatibility, but the sidebar management panel is the intended interface.
+All modifications are held locally until **Save all changes** is clicked. **Discard** restores the last saved configuration. Changes to chores or people immediately update the HA sensor after saving. The old one-operation-at-a-time **Configure** flow has been removed. The sidebar management panel is the only configuration interface. Existing configuration is preserved.
 
 The order of shares matters: for daily cooking, `A A A A A A B` gives B every Sunday when the cycle is aligned to the reference Monday. For a weekly chore, `A B` alternates by week. Person percentages specify proportions, while individual slots control their ordering. No notifications are sent by this integration.
 
@@ -47,14 +47,20 @@ For notifications, create a **time-triggered automation** that reads this attrib
 
 ## Scheduling rules
 
-- Tasks are selected in their configured order within the five frequency groups: daily, twice weekly, weekly, monthly, quarterly.
-- Each daily chore occurs once each day; each twice-weekly chore twice per Monday–Sunday week; weekly chores once each week; monthly chores once per calendar month; quarterly chores once per calendar quarter.
-- Required task occurrences are spread across the available days by integer partitioning, with multiple occurrences on one day when necessary.
-- Assignment cycles are independent **per task**, not reset at period boundaries. The result is computed from the date, with no volatile counters or replay.
-- No load balancing, acknowledgement/completion tracking, or overdue-task handling.
+Each task is configured separately in the sidebar dashboard. In addition to its repeating **person assignment sequence**, a task has its own calendar recurrence:
 
-**Note:** Editing task order, frequency or cycle changes date-derived assignments, including historical results if recalculated. The configuration is persisted in HA's config entries, and no historical audit log is kept. Assignment cycles are anchored to the Monday **2026-11-16**. A recurring daily 6/7 `A,A,A,A,A,A,B` cycle therefore places B on Sundays.
+- **Daily:** Every N days (default: every day).
+- **Weekly:** Selected weekdays, every N weeks (e.g. Monday with interval 2 = every second Monday).
+- **Twice weekly:** Two selected weekdays, every N weeks (default: Monday and Thursday every week).
+- **Monthly:** A selected day of the month, every N months (e.g. the 15th each month).
+- **Quarterly:** A selected day of the month, every N months (default: every three months, in January/April/July/October).
 
-## Development status
+For weekly/monthly schedules the **Reference date** (anchor date) determines which week/month is the first in the cycle. The relevant week starts on Monday. For example, selecting a Monday, a two-week interval and the reference date `2026-11-16` gives November 16, November 30, December 14, etc. Monthly tasks on the 29th, 30th or 31st occur on the final calendar day in shorter months.
 
-Initial implementation with native HA sidebar management panel. Pure scheduler tests and JavaScript syntax checks have been run. **This integration has not yet been tested inside a running HA 2026.11 instance.** Verify panel registration, WebSocket saves and sensor updates after installing.
+Assignment cycles advance once per scheduled occurrence and are independent per task. They do not reset at month, quarter or week boundaries. Assignment and scheduling are both calculated from dates rather than volatile counters. HA restarts do not move assignments; missed dates are not made up.
+
+**Upgrade note:** Tasks from v0.3.1 had no individual dates. They retain their people and allocation sequences and receive editable default recurrence rules on load (daily each day, twice weekly Mon/Thu, weekly Monday, monthly first of month, quarterly first day of Jan/Apr/Jul/Oct). Save once in the sidebar dashboard to persist those dates. This intentionally replaces the previous algorithm's automatic distribution of tasks across a period.
+
+The HA sensor remains `sensor.chore_rotation_today`. Existing notification automations do not need changes.
+
+No notifications, load balancing, completion tracking or overdue handling are built into the integration.

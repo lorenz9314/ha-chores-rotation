@@ -13,11 +13,14 @@ _DEFAULT_TASKS = {
     "monthly": ["Ein Date planen"],
     "quarterly": ["Fenster putzen", "Kühlschrank reinigen"],
 }
+from .scheduler import default_schedule
+
 DEFAULT_CHORES = [
     {
         "id": f"{frequency}_{index}",
         "name": name,
         "frequency": frequency,
+        "schedule": default_schedule(frequency),
         "cycle": (["a", "a", "a", "a", "a", "a", "b"] if name == "Kochen" else ["a"] if name == "Wäsche waschen" else ["a", "b"]),
     }
     for frequency, names in _DEFAULT_TASKS.items()

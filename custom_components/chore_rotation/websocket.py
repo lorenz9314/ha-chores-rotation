@@ -8,7 +8,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 
 from .const import DOMAIN
-from .scheduler import FREQUENCIES
+from .scheduler import FREQUENCIES, default_schedule
 
 
 @callback
@@ -31,7 +31,10 @@ async def get_configuration(hass, connection, msg):
         return
     connection.send_result(msg["id"], {
         "people": deepcopy(entry.options["people"]),
-        "chores": deepcopy(entry.options["chores"]),
+        "chores": [
+            {**deepcopy(task), "schedule": deepcopy(task.get("schedule") or default_schedule(task["frequency"]))}
+            for task in entry.options["chores"]
+        ],
     })
 
 
@@ -63,8 +66,29 @@ async def save_configuration(hass, connection, msg):
         for task in chores:
             if not isinstance(task["name"], str) or not task["name"].strip():
                 raise ValueError("Every task needs a name")
-            if task["frequency"] not in FREQUENCIES:
+            frequency = task["frequency"]
+            if frequency not in FREQUENCIES:
                 raise ValueError("Invalid task frequency")
+            schedule = task["schedule"]
+            if not isinstance(schedule, dict):
+                raise ValueError("Invalid schedule")
+            interval = schedule.get("interval")
+            if type(interval) is not int or not 1 <= interval <= 120:
+                raise ValueError("Schedule interval must be between 1 and 120")
+            if frequency in ("weekly", "twice_weekly"):
+                weekdays = schedule.get("weekdays")
+                if (not isinstance(weekdays, list) or not weekdays
+                        or len(set(weekdays)) != len(weekdays)
+                        or any(type(day) is not int or day not in range(7) for day in weekdays)):
+                    raise ValueError("Select at least one valid weekday")
+                if frequency == "twice_weekly" and len(weekdays) != 2:
+                    raise ValueError("Twice-weekly tasks need two weekdays")
+            if frequency in ("weekly", "twice_weekly", "monthly", "quarterly"):
+                from datetime import date
+                date.fromisoformat(schedule["anchor"])
+            if frequency in ("monthly", "quarterly"):
+                if type(schedule.get("day")) is not int or not 1 <= schedule["day"] <= 31:
+                    raise ValueError("Monthly day must be between 1 and 31")
             cycle = task["cycle"]
             if not isinstance(cycle, list) or not cycle or any(pid not in ids for pid in cycle):
                 raise ValueError("Each task requires a valid assignment cycle")
