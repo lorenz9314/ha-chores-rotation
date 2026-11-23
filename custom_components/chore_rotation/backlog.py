@@ -12,6 +12,7 @@ class ChoreBacklog:
 
     def __init__(self, hass, entry):
         self.entry = entry
+        self.sensor = None
         self.store = Store(hass, 1, f"chore_rotation.{entry.entry_id}.backlog")
         self.pending = []
         self.completed = set()

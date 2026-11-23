@@ -6,14 +6,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, RUNTIME_KEY
 
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    sensor = ChoreRotationSensor(hass.data[RUNTIME_KEY][entry.entry_id], entry)
-    entry.runtime_data = sensor
+    backlog = entry.runtime_data
+    sensor = ChoreRotationSensor(backlog, entry)
+    backlog.sensor = sensor
     async_add_entities([sensor])
 
 

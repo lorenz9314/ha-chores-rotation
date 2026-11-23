@@ -24,6 +24,7 @@ class ChoreRotationPanel extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this.loaded = false;
+    this.pending = [];
     this.busy = false;
     this.dirty = false;
     this.error = "";
@@ -31,13 +32,19 @@ class ChoreRotationPanel extends HTMLElement {
     this.active = window.location.hash === "#today" ? "today" : "chores";
     this.onHashChange = () => {
       const tab = window.location.hash.slice(1);
-      this.active = ["chores", "people", "today"].includes(tab) ? tab : "chores";
+      this.active = this.isAdmin && ["chores", "people", "today"].includes(tab) ? tab : "today";
+      if (this.active === "today" && this.loaded) this.loadPending();
       this.render();
     };
   }
 
+  get isAdmin() {
+    return this._hass?.user?.is_admin === true;
+  }
+
   set hass(value) {
     this._hass = value;
+    if (!this.isAdmin) this.active = "today";
     if (!this.loaded && !this.busy) this.load();
   }
 
@@ -57,6 +64,8 @@ class ChoreRotationPanel extends HTMLElement {
       const result = await this._hass.callWS({ type: "chore_rotation/get" });
       this.people = result.people;
       this.chores = result.chores.map(t => ({...t, schedule: t.schedule || defaultSchedule(t.frequency)}));
+      const status = await this._hass.callWS({ type: "chore_rotation/pending" });
+      this.pending = status.pending;
       this.loaded = true;
       this.dirty = false;
       this.error = "";
@@ -64,6 +73,28 @@ class ChoreRotationPanel extends HTMLElement {
       this.error = `Could not load configuration: ${e.message || e}`;
     } finally {
       this.busy = false;
+      this.render();
+    }
+  }
+
+  async loadPending() {
+    if (!this._hass) return;
+    try {
+      const status = await this._hass.callWS({ type: "chore_rotation/pending" });
+      this.pending = status.pending;
+      this.render();
+    } catch (e) {
+      this.error = `Could not load chores: ${e.message || e}`;
+      this.render();
+    }
+  }
+
+  async complete(id) {
+    try {
+      await this._hass.callWS({ type: "chore_rotation/complete", occurrence_id: id });
+      await this.loadPending();
+    } catch (e) {
+      this.error = `Could not complete chore: ${e.message || e}`;
       this.render();
     }
   }
@@ -180,29 +211,36 @@ class ChoreRotationPanel extends HTMLElement {
         .preview-person { border:1px solid var(--divider-color,#ddd); border-radius:10px; padding:12px; }
         .preview ul { padding-left:19px; margin:9px 0 0; }
         .preview li { margin:6px 0; font-size:14px; }
+        .pending-row { display:flex; align-items:flex-start; gap:9px; margin:12px 0; font-size:14px; }
+        .pending-row input { width:18px; height:18px; flex:none; cursor:pointer; margin:1px 0 0; }
+        .pending-row label { cursor:pointer; flex:1; }
+        .pending-row .overdue { font-size:12px; color:var(--secondary-text-color); display:block; margin-top:3px; }
         .footer { position:sticky; bottom:0; background:var(--card-background-color); border-top:1px solid var(--divider-color); padding:13px 20px; display:flex; justify-content:flex-end; gap:10px; align-items:center; margin:18px -22px -90px; }
         @media(max-width:760px) { .wrap { padding:16px 12px 84px; } .task { grid-template-columns:1fr; gap:10px; } .task-controls { justify-content:flex-start; } .footer { margin-left:-12px; margin-right:-12px; } }
       </style>
       <div class="wrap">
         <header>
-          <div><h1>Chores</h1><div class="muted">Manage chore schedules and recurring assignments</div></div>
+          <div><h1>Chores</h1><div class="muted">${this.isAdmin ? "Manage chore schedules and recurring assignments" : "Your outstanding household chores"}</div></div>
           <div class="actions"><span class="muted">${chores.length} chores · ${people.length} people</span></div>
         </header>
         ${this.error ? `<div class="message error" role="alert">${escapeHtml(this.error)}</div>` : ""}
         ${this.notice ? `<div class="message">${escapeHtml(this.notice)}</div>` : ""}
         ${!ready ? `<div class="card">${this.busy ? "Loading configuration…" : "Configuration unavailable."}</div>` : `
           <div class="tabs">
-            <button data-action="tab" data-tab="chores" class="${this.active === "chores" ? "active" : ""}">Chores & assignments</button>
-            <button data-action="tab" data-tab="people" class="${this.active === "people" ? "active" : ""}">People</button>
+            ${this.isAdmin ? `<button data-action="tab" data-tab="chores" class="${this.active === "chores" ? "active" : ""}">Chores & assignments</button>
+            <button data-action="tab" data-tab="people" class="${this.active === "people" ? "active" : ""}">People</button>` : ""}
             <button data-action="tab" data-tab="today" class="${this.active === "today" ? "active" : ""}">Today's chores</button>
           </div>
           ${this.active === "chores" ? this.renderChores() : this.active === "people" ? this.renderPeople() : this.renderToday()}
-          <div class="footer"><span class="muted">${this.dirty ? "Unsaved changes" : "All changes saved"}</span><button data-action="discard" ${!this.dirty || this.busy ? "disabled" : ""}>Discard</button><button class="primary" data-action="save" ${!this.dirty || this.busy ? "disabled" : ""}>${this.busy ? "Saving…" : "Save all changes"}</button></div>
+          ${this.isAdmin ? `<div class="footer"><span class="muted">${this.dirty ? "Unsaved changes" : "All changes saved"}</span><button data-action="discard" ${!this.dirty || this.busy ? "disabled" : ""}>Discard</button><button class="primary" data-action="save" ${!this.dirty || this.busy ? "disabled" : ""}>${this.busy ? "Saving…" : "Save all changes"}</button></div>` : ""}
         `}
       </div>`;
     this.shadowRoot.querySelectorAll("button[data-action]").forEach(b => b.addEventListener("click", () => this.handle(b.dataset)));
     this.shadowRoot.querySelectorAll("input[data-field]").forEach(input => input.addEventListener("change", () => this.editField(input.dataset, input.value)));
     this.shadowRoot.querySelectorAll("select[data-field]").forEach(input => input.addEventListener("change", () => this.editField(input.dataset, input.value)));
+    this.shadowRoot.querySelectorAll("input[data-complete]").forEach(input => input.addEventListener("change", () => {
+      if (input.checked) this.complete(input.dataset.complete);
+    }));
   }
 
   renderChores() {
@@ -262,11 +300,17 @@ class ChoreRotationPanel extends HTMLElement {
   }
 
   renderToday() {
-    const value = this._hass?.states?.["sensor.chore_rotation_today"]?.attributes;
-    const assignments = value?.assignments || {};
-    return `<section class="card"><div class="card-head"><h2>Today's chores</h2><span class="muted">${escapeHtml(value?.date || "")}</span></div>
-      <div class="preview">${this.people.map(p => `<div class="preview-person"><h3>${escapeHtml(p.name)}</h3><ul>${(assignments[p.name] || []).map(t => `<li>${escapeHtml(t)}</li>`).join("") || '<li class="muted">No chores</li>'}</ul></div>`).join("")}</div>
-      <p class="muted">These are the most recently published sensor values. Unsaved changes appear only after saving.</p>
+    const today = this._hass?.states?.["sensor.chore_rotation_today"]?.attributes?.date || "";
+    const grouped = Object.fromEntries(this.people.map(p => [p.id, []]));
+    for (const item of this.pending) {
+      (grouped[item.person_id] ||= []).push(item);
+    }
+    return `<section class="card"><div class="card-head"><h2>Today's chores & unfinished tasks</h2><span class="muted">${this.pending.length} outstanding</span></div>
+      <div class="preview">${this.people.map(p => `<div class="preview-person"><h3>${escapeHtml(p.name)}</h3>
+        ${(grouped[p.id] || []).map(item => `<div class="pending-row"><input type="checkbox" data-complete="${escapeHtml(item.id)}" aria-label="Complete ${escapeHtml(item.name)}" />
+          <label>${escapeHtml(item.name)}${item.date !== today ? `<span class="overdue">Scheduled ${escapeHtml(item.date)}</span>` : ""}</label></div>`).join("") || '<p class="muted">No outstanding chores</p>'}
+      </div>`).join("")}</div>
+      <p class="muted">Tick a chore to mark that occurrence complete. Unfinished chores remain here on subsequent days and after Home Assistant restarts.</p>
     </section>`;
   }
 
@@ -300,9 +344,12 @@ class ChoreRotationPanel extends HTMLElement {
   }
 
   handle({ action, id, person, position, frequency, tab }) {
+    if (!this.isAdmin && action !== "tab") return;
     if (action === "tab") {
+      if (!this.isAdmin && tab !== "today") return;
       this.active = tab;
       window.location.hash = tab;
+      if (tab === "today") this.loadPending();
       this.render();
       return;
     }

@@ -8,7 +8,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 
-from .const import DOMAIN, RUNTIME_KEY
+from .const import DOMAIN
 from .scheduler import FREQUENCIES, default_schedule
 
 
@@ -114,10 +114,11 @@ async def save_configuration(hass, connection, msg):
     hass.config_entries.async_update_entry(
         entry, options={"people": deepcopy(people), "chores": deepcopy(chores)}
     )
-    backlog = hass.data[RUNTIME_KEY][entry.entry_id]
+    backlog = entry.runtime_data
     await backlog.refresh(date.today())
-    sensor = entry.runtime_data
-    sensor.async_write_ha_state()
+    sensor = backlog.sensor
+    if sensor is not None:
+        sensor.async_write_ha_state()
     connection.send_result(msg["id"], {"saved": True})
 
 
@@ -128,7 +129,7 @@ async def get_pending(hass, connection, msg):
     if entry is None:
         connection.send_error(msg["id"], "not_configured", "Chore Rotation is not configured")
         return
-    backlog = hass.data[RUNTIME_KEY][entry.entry_id]
+    backlog = entry.runtime_data
     connection.send_result(msg["id"], {"pending": deepcopy(backlog.pending)})
 
 
@@ -142,11 +143,12 @@ async def complete_occurrence(hass, connection, msg):
     if entry is None:
         connection.send_error(msg["id"], "not_configured", "Chore Rotation is not configured")
         return
-    backlog = hass.data[RUNTIME_KEY][entry.entry_id]
+    backlog = entry.runtime_data
     try:
         await backlog.complete(msg["occurrence_id"])
     except ValueError as exc:
         connection.send_error(msg["id"], "not_found", str(exc))
         return
-    entry.runtime_data.async_write_ha_state()
+    if backlog.sensor is not None:
+        backlog.sensor.async_write_ha_state()
     connection.send_result(msg["id"], {"completed": True})

@@ -8,17 +8,19 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_time_change
+from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .backlog import ChoreBacklog
+from .const import DOMAIN, RUNTIME_KEY
 from .websocket import async_setup as async_setup_websocket
 
 PLATFORMS = ["sensor"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Register the management panel and the daily assignment sensor."""
-    if DOMAIN not in hass.data:
-        hass.data[DOMAIN] = True
+    """Load outstanding chores and register management and sensor interfaces."""
+    if RUNTIME_KEY not in hass.data:
+        hass.data[RUNTIME_KEY] = {}
         async_setup_websocket(hass)
         await hass.http.async_register_static_paths([
             StaticPathConfig(
@@ -33,14 +35,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             frontend_url_path="chore-rotation",
             sidebar_title="Chore Rotation",
             sidebar_icon="mdi:clipboard-list",
-            module_url=f"/{DOMAIN}_frontend/chore-rotation-panel.js?v=0.5.1",
-            require_admin=True,
+            module_url=f"/{DOMAIN}_frontend/chore-rotation-panel.js?v=0.6.4",
+            require_admin=False,
         )
 
+    backlog = ChoreBacklog(hass, entry)
+    await backlog.load()
+    await backlog.refresh(dt_util.now().date())
+    entry.runtime_data = backlog
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    def update_at_midnight(now: datetime) -> None:
-        entry.runtime_data.async_write_ha_state()
+    async def update_at_midnight(now: datetime) -> None:
+        await backlog.refresh(dt_util.now().date())
+        if backlog.sensor is not None:
+            backlog.sensor.async_write_ha_state()
 
     entry.async_on_unload(
         async_track_time_change(hass, update_at_midnight, hour=0, minute=0, second=0)
@@ -49,4 +57,5 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    return unloaded
