@@ -14,27 +14,34 @@ class ChoreBacklog:
         self.entry = entry
         self.store = Store(hass, 1, f"chore_rotation.{entry.entry_id}.backlog")
         self.pending = []
+        self.completed = set()
         self.last_date = None
 
     async def load(self):
         data = await self.store.async_load() or {}
         self.pending = data.get("pending", [])
+        self.completed = set(data.get("completed", []))
         self.last_date = data.get("last_date")
 
     async def refresh(self, today: date):
         today_str = today.isoformat()
-        if self.last_date == today_str:
-            return
+        if self.last_date != today_str:
+            # Past occurrences are never backfilled. Completion identifiers
+            # from previous days no longer need to be retained.
+            self.completed = set()
         names = {p["id"]: p["name"] for p in self.entry.options["people"]}
+        existing = {item["id"] for item in self.pending}
         for chore in self.entry.options["chores"]:
             index = occurrence_number(today, chore)
             if index is None:
+                continue
+            key = f"{today_str}:{chore['id']}"
+            if key in existing or key in self.completed:
                 continue
             cycle = chore["cycle"]
             pid = cycle[index % len(cycle)]
             if chore.get("assignment_mode", "cycle") in ("weekday", "override"):
                 pid = chore.get("weekday_assignments", {}).get(str(today.weekday()), pid)
-            key = f"{today_str}:{chore['id']}"
             self.pending.append({
                 "id": key, "task_id": chore["id"],
                 "date": today_str, "name": chore["name"],
@@ -48,10 +55,16 @@ class ChoreBacklog:
         self.pending = [item for item in self.pending if item["id"] != occurrence_id]
         if len(self.pending) == old_length:
             raise ValueError("Occurrence not found")
+        if occurrence_id.startswith(f"{self.last_date}:"):
+            self.completed.add(occurrence_id)
         await self.save()
 
     async def save(self):
-        await self.store.async_save({"last_date": self.last_date, "pending": self.pending})
+        await self.store.async_save({
+            "last_date": self.last_date,
+            "pending": self.pending,
+            "completed": sorted(self.completed),
+        })
 
     def grouped(self):
         result = {p["name"]: [] for p in self.entry.options["people"]}

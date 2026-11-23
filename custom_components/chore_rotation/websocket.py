@@ -1,6 +1,7 @@
 """Read and update the chore configuration from the management panel."""
 
 from copy import deepcopy
+from datetime import date
 
 import voluptuous as vol
 
@@ -113,6 +114,8 @@ async def save_configuration(hass, connection, msg):
     hass.config_entries.async_update_entry(
         entry, options={"people": deepcopy(people), "chores": deepcopy(chores)}
     )
+    backlog = hass.data[DOMAIN][entry.entry_id]
+    await backlog.refresh(date.today())
     sensor = entry.runtime_data
     sensor.async_write_ha_state()
     connection.send_result(msg["id"], {"saved": True})
